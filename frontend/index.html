@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>YouTube RAG Assistant</title>
+
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+
+    <main class="container">
+
+        <header class="hero">
+            <h1>YouTube RAG Assistant</h1>
+
+            <p>
+                Ask questions about a YouTube video using its transcript.
+            </p>
+        </header>
+
+
+        <!-- API KEY -->
+
+        <section class="card">
+
+            <h2>1. Gemini API Key</h2>
+
+            <p class="help-text">
+                Your API key is used to process the video and answer questions.
+            </p>
+
+            <div class="input-group">
+
+                <input
+                    type="password"
+                    id="apiKey"
+                    placeholder="Enter your Gemini API key"
+                    autocomplete="off"
+                >
+
+                <button
+                    type="button"
+                    id="toggleKey"
+                    class="secondary-button"
+                >
+                    Show
+                </button>
+
+            </div>
+
+        </section>
+
+
+        <!-- VIDEO -->
+
+        <section class="card">
+
+            <h2>2. Video</h2>
+
+            <label for="videoUrl">
+                YouTube URL
+            </label>
+
+            <input
+                type="url"
+                id="videoUrl"
+                placeholder="https://www.youtube.com/watch?v=..."
+            >
+
+
+            <label for="language">
+                Transcript Language
+            </label>
+
+            <select id="language">
+
+                <option value="en">English</option>
+                <option value="hi">Hindi</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="ja">Japanese</option>
+
+            </select>
+
+
+            <button
+                type="button"
+                id="processButton"
+                class="primary-button"
+            >
+                Process Video
+            </button>
+
+            <div id="processStatus" class="status"></div>
+
+        </section>
+
+
+        <!-- QUESTIONS -->
+
+        <section class="card">
+
+            <h2>3. Ask a Question</h2>
+
+            <textarea
+                id="question"
+                rows="4"
+                placeholder="Ask something about the video..."
+            ></textarea>
+
+            <button
+                type="button"
+                id="askButton"
+                class="primary-button"
+                disabled
+            >
+                Ask Question
+            </button>
+
+            <div id="answerContainer" class="answer-container">
+
+                <h3>Answer</h3>
+
+                <div id="answer">
+                    Process a video first, then ask a question.
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- GENERAL STATUS -->
+
+        <div id="errorMessage" class="error"></div>
+
+    </main>
+
+
+    <script src="/static/script.js"></script>
+
+</body>
+</html>
