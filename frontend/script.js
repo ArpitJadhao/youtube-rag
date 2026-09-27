@@ -191,7 +191,7 @@ askButton.addEventListener("click", async () => {
             body: JSON.stringify({
                 session_id: sessionId,
                 question: question,
-                api_key: apiKey
+                // api_key: apiKey
             })
 
         });

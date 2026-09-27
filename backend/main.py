@@ -54,7 +54,7 @@ class ProcessVideoRequest(BaseModel):
 class AskQuestionRequest(BaseModel):
     session_id: str
     question: str
-    api_key: str
+    # api_key: str
 
 
 # --------------------------------------------------
