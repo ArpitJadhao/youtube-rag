@@ -3,6 +3,13 @@ const toggleKeyButton = document.getElementById("toggleKey");
 
 const videoUrlInput = document.getElementById("videoUrl");
 const languageSelect = document.getElementById("language");
+
+const embeddingModelSelect =
+    document.getElementById("embeddingModel");
+
+const chatModelSelect =
+    document.getElementById("chatModel");
+
 const processButton = document.getElementById("processButton");
 const processStatus = document.getElementById("processStatus");
 
@@ -17,8 +24,11 @@ const errorMessage = document.getElementById("errorMessage");
 // SESSION STORAGE
 // --------------------------------------------------
 
-const savedApiKey = sessionStorage.getItem("gemini_api_key");
-const savedSessionId = sessionStorage.getItem("rag_session_id");
+const savedApiKey =
+    sessionStorage.getItem("gemini_api_key");
+
+const savedSessionId =
+    sessionStorage.getItem("rag_session_id");
 
 if (savedApiKey) {
     apiKeyInput.value = savedApiKey;
@@ -34,11 +44,15 @@ let sessionId = savedSessionId || null;
 toggleKeyButton.addEventListener("click", () => {
 
     if (apiKeyInput.type === "password") {
+
         apiKeyInput.type = "text";
         toggleKeyButton.textContent = "Hide";
+
     } else {
+
         apiKeyInput.type = "password";
         toggleKeyButton.textContent = "Show";
+
     }
 
 });
@@ -53,9 +67,18 @@ apiKeyInput.addEventListener("input", () => {
     const apiKey = apiKeyInput.value.trim();
 
     if (apiKey) {
-        sessionStorage.setItem("gemini_api_key", apiKey);
+
+        sessionStorage.setItem(
+            "gemini_api_key",
+            apiKey
+        );
+
     } else {
-        sessionStorage.removeItem("gemini_api_key");
+
+        sessionStorage.removeItem(
+            "gemini_api_key"
+        );
+
     }
 
 });
@@ -73,48 +96,117 @@ processButton.addEventListener("click", async () => {
     const videoUrl = videoUrlInput.value.trim();
     const language = languageSelect.value;
 
+    const embeddingModel =
+        embeddingModelSelect.value;
+
+    const chatModel =
+        chatModelSelect.value;
+
+
+    // ----------------------------------------------
+    // VALIDATION
+    // ----------------------------------------------
+
     if (!apiKey) {
-        showError("Please enter your Gemini API key.");
+
+        showError(
+            "Please enter your Gemini API key."
+        );
+
         return;
     }
 
     if (!videoUrl) {
-        showError("Please enter a YouTube URL.");
+
+        showError(
+            "Please enter a YouTube URL."
+        );
+
         return;
     }
 
-    sessionStorage.setItem("gemini_api_key", apiKey);
+
+    // ----------------------------------------------
+    // SAVE API KEY
+    // ----------------------------------------------
+
+    sessionStorage.setItem(
+        "gemini_api_key",
+        apiKey
+    );
+
+
+    // ----------------------------------------------
+    // UI STATE
+    // ----------------------------------------------
 
     processButton.disabled = true;
     processButton.textContent = "Processing...";
-    processStatus.textContent = "Fetching transcript and creating the RAG index...";
+
+    processStatus.textContent =
+        "Fetching transcript and creating the RAG index...";
 
     askButton.disabled = true;
+
     sessionId = null;
+
+
+    // ----------------------------------------------
+    // PROCESS VIDEO
+    // ----------------------------------------------
 
     try {
 
-        const response = await fetch("/process-video", {
+        const response = await fetch(
+            "/process-video",
+            {
 
-            method: "POST",
+                method: "POST",
 
-            headers: {
-                "Content-Type": "application/json"
-            },
+                headers: {
+                    "Content-Type": "application/json"
+                },
 
-            body: JSON.stringify({
-                video_url: videoUrl,
-                language: language,
-                api_key: apiKey
-            })
+                body: JSON.stringify({
 
-        });
+                    video_url: videoUrl,
+
+                    language: language,
+
+                    api_key: apiKey,
+
+                    embedding_model:
+                        embeddingModel,
+
+                    chat_model:
+                        chatModel
+
+                })
+
+            }
+        );
+
 
         const data = await response.json();
 
+
+        // ------------------------------------------
+        // HANDLE ERROR
+        // ------------------------------------------
+
         if (!response.ok) {
-            throw new Error(data.detail || "Failed to process the video.");
+
+            throw new Error(
+                data.detail ||
+                "Failed to process the video."
+            );
+
         }
+
+
+        // ------------------------------------------
+        // SAVE SESSION
+        // ------------------------------------------
 
         sessionId = data.session_id;
 
@@ -123,6 +215,11 @@ processButton.addEventListener("click", async () => {
             sessionId
         );
 
+
+        // ------------------------------------------
+        // SUCCESS
+        // ------------------------------------------
+
         processStatus.textContent =
             "Video processed successfully. You can now ask questions.";
 
@@ -130,6 +227,7 @@ processButton.addEventListener("click", async () => {
             "Video is ready. Ask a question about it.";
 
         askButton.disabled = false;
+
 
     } catch (error) {
 
@@ -141,7 +239,9 @@ processButton.addEventListener("click", async () => {
     } finally {
 
         processButton.disabled = false;
-        processButton.textContent = "Process Video";
+
+        processButton.textContent =
+            "Process Video";
 
     }
 
@@ -156,51 +256,86 @@ askButton.addEventListener("click", async () => {
 
     clearError();
 
-    const apiKey = apiKeyInput.value.trim();
-    const question = questionInput.value.trim();
+    const question =
+        questionInput.value.trim();
 
-    if (!apiKey) {
-        showError("Please enter your Gemini API key.");
-        return;
-    }
+
+    // ----------------------------------------------
+    // VALIDATION
+    // ----------------------------------------------
 
     if (!sessionId) {
-        showError("Please process a video first.");
+
+        showError(
+            "Please process a video first."
+        );
+
         return;
     }
 
     if (!question) {
-        showError("Please enter a question.");
+
+        showError(
+            "Please enter a question."
+        );
+
         return;
     }
 
+
+    // ----------------------------------------------
+    // UI STATE
+    // ----------------------------------------------
+
     askButton.disabled = true;
-    askButton.textContent = "Thinking...";
-    answer.textContent = "Searching the transcript...";
+
+    askButton.textContent =
+        "Thinking...";
+
+    answer.textContent =
+        "Searching the transcript...";
+
+
+    // ----------------------------------------------
+    // ASK BACKEND
+    // ----------------------------------------------
 
     try {
 
-        const response = await fetch("/ask", {
+        const response = await fetch(
+            "/ask",
+            {
 
-            method: "POST",
+                method: "POST",
 
-            headers: {
-                "Content-Type": "application/json"
-            },
+                headers: {
+                    "Content-Type": "application/json"
+                },
 
-            body: JSON.stringify({
-                session_id: sessionId,
-                question: question,
-                // api_key: apiKey
-            })
+                body: JSON.stringify({
 
-        });
+                    session_id: sessionId,
+
+                    question: question
+
+                })
+
+            }
+        );
+
 
         const data = await response.json();
 
+
+        // ------------------------------------------
+        // HANDLE ERROR
+        // ------------------------------------------
+
         if (!response.ok) {
 
-            // Session may have disappeared after a server restart.
+            // Session may have disappeared
+            // after a server restart.
+
             if (response.status === 404) {
 
                 sessionId = null;
@@ -212,18 +347,30 @@ askButton.addEventListener("click", async () => {
                 throw new Error(
                     "Your video session has expired. Please process the video again."
                 );
+
             }
 
             throw new Error(
-                data.detail || "Failed to get an answer."
+                data.detail ||
+                "Failed to get an answer."
             );
+
         }
 
-        answer.textContent = data.answer;
+
+        // ------------------------------------------
+        // DISPLAY ANSWER
+        // ------------------------------------------
+
+        answer.textContent =
+            data.answer;
+
 
     } catch (error) {
 
-        showError(error.message);
+        showError(
+            error.message
+        );
 
         answer.textContent =
             "Unable to generate an answer.";
@@ -231,7 +378,9 @@ askButton.addEventListener("click", async () => {
     } finally {
 
         askButton.disabled = false;
-        askButton.textContent = "Ask Question";
+
+        askButton.textContent =
+            "Ask Question";
 
     }
 
@@ -242,19 +391,27 @@ askButton.addEventListener("click", async () => {
 // ENTER KEY SUPPORT
 // --------------------------------------------------
 
-questionInput.addEventListener("keydown", (event) => {
+questionInput.addEventListener(
+    "keydown",
+    (event) => {
 
-    if (event.key === "Enter" && !event.shiftKey) {
+        if (
+            event.key === "Enter" &&
+            !event.shiftKey
+        ) {
 
-        event.preventDefault();
+            event.preventDefault();
 
-        if (!askButton.disabled) {
-            askButton.click();
+            if (!askButton.disabled) {
+
+                askButton.click();
+
+            }
+
         }
 
     }
-
-});
+);
 
 
 // --------------------------------------------------
@@ -262,9 +419,16 @@ questionInput.addEventListener("keydown", (event) => {
 // --------------------------------------------------
 
 function showError(message) {
-    errorMessage.textContent = message;
+
+    errorMessage.textContent =
+        message;
+
 }
 
+
 function clearError() {
-    errorMessage.textContent = "";
+
+    errorMessage.textContent =
+        "";
+
 }

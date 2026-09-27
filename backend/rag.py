@@ -1,63 +1,90 @@
+import urllib.request
+
 from urllib.parse import urlparse, parse_qs
 
-from youtube_transcript_api import (
-    YouTubeTranscriptApi,
-    TranscriptsDisabled,
-    NoTranscriptFound,
-    VideoUnavailable,
+from langchain_text_splitters import (
+    RecursiveCharacterTextSplitter
 )
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import (
     ChatGoogleGenerativeAI,
-    GoogleGenerativeAIEmbeddings,
+    GoogleGenerativeAIEmbeddings
 )
+
 from langchain_community.vectorstores import FAISS
 
 from langchain_core.prompts import PromptTemplate
+
 from langchain_core.runnables import (
     RunnableParallel,
     RunnablePassthrough,
-    RunnableLambda,
+    RunnableLambda
 )
-from langchain_core.output_parsers import StrOutputParser
+
+from langchain_core.output_parsers import (
+    StrOutputParser
+)
 
 
 # --------------------------------------------------
-# 1. Extract YouTube Video ID
+# EXTRACT YOUTUBE VIDEO ID
 # --------------------------------------------------
 
 def extract_video_id(url: str) -> str:
-    """
-    Extract the video ID from common YouTube URL formats.
-    """
 
     parsed_url = urlparse(url)
+
     hostname = parsed_url.hostname
 
-    # youtube.com/watch?v=VIDEO_ID
-    if hostname in ["youtube.com", "www.youtube.com"]:
-        query_params = parse_qs(parsed_url.query)
 
+    # youtube.com
+    if hostname in [
+        "youtube.com",
+        "www.youtube.com"
+    ]:
+
+        query_params = parse_qs(
+            parsed_url.query
+        )
+
+        # Normal YouTube URL
         if "v" in query_params:
+
             return query_params["v"][0]
 
-        # youtube.com/shorts/VIDEO_ID
-        if parsed_url.path.startswith("/shorts/"):
-            return parsed_url.path.split("/shorts/")[1].split("/")[0]
 
-    # youtu.be/VIDEO_ID
-    if hostname in ["youtu.be", "www.youtu.be"]:
+        # YouTube Shorts
+        if parsed_url.path.startswith(
+            "/shorts/"
+        ):
+
+            return (
+                parsed_url.path
+                .split("/shorts/")[1]
+                .split("/")[0]
+            )
+
+
+    # youtu.be
+    if hostname in [
+        "youtu.be",
+        "www.youtu.be"
+    ]:
+
         video_id = parsed_url.path.strip("/")
 
         if video_id:
+
             return video_id
 
-    raise ValueError("Invalid YouTube URL")
+
+    raise ValueError(
+        "Invalid YouTube URL"
+    )
 
 
 # --------------------------------------------------
-# 2. Get YouTube Transcript
+# GET YOUTUBE TRANSCRIPT
 # --------------------------------------------------
 
 def get_transcript(
@@ -65,92 +92,137 @@ def get_transcript(
     language: str = "en"
 ) -> str:
 
-    video_id = extract_video_id(video_url)
+    video_id = extract_video_id(
+        video_url
+    )
+
+
+    transcript_url = (
+        f"https://youtube-transcript.ai/"
+        f"transcript/{video_id}.txt"
+        f"?lang={language}"
+    )
+
 
     try:
-        transcript_list = YouTubeTranscriptApi().fetch(
-            video_id,
-            languages=[language]
+
+        request = urllib.request.Request(
+
+            transcript_url,
+
+            headers={
+                "User-Agent": "Mozilla/5.0"
+            }
+
         )
 
-        transcript = " ".join(
-            chunk.text for chunk in transcript_list
-        )
+
+        with urllib.request.urlopen(
+            request,
+            timeout=30
+        ) as response:
+
+            transcript = (
+                response
+                .read()
+                .decode("utf-8")
+            )
+
 
         if not transcript.strip():
-            raise ValueError("Transcript is empty.")
+
+            raise ValueError(
+                "Transcript is empty."
+            )
+
 
         return transcript
 
-    except TranscriptsDisabled:
-        raise ValueError(
-            "This video does not have captions enabled."
-        )
 
-    except NoTranscriptFound:
-        raise ValueError(
-            f"No transcript was found for language '{language}'."
-        )
+    except Exception as e:
 
-    except VideoUnavailable:
         raise ValueError(
-            "This YouTube video is unavailable."
+            f"Could not retrieve transcript: {str(e)}"
         )
 
 
 # --------------------------------------------------
-# 3. Create FAISS Vector Store
+# CREATE VECTOR STORE
 # --------------------------------------------------
 
 def create_vector_store(
     transcript: str,
-    api_key: str
+    api_key: str,
+    embedding_model: str
 ):
 
     splitter = RecursiveCharacterTextSplitter(
+
         chunk_size=1000,
+
         chunk_overlap=200
+
     )
+
 
     chunks = splitter.create_documents(
         [transcript]
     )
 
+
     embeddings = GoogleGenerativeAIEmbeddings(
-        model="gemini-embedding-2",
+
+        model=embedding_model,
+
         google_api_key=api_key
+
     )
 
+
     vector_store = FAISS.from_documents(
+
         chunks,
+
         embeddings
+
     )
+
 
     return vector_store
 
 
 # --------------------------------------------------
-# 4. Create RAG Chain
+# CREATE RAG CHAIN
 # --------------------------------------------------
 
 def create_rag_chain(
     vector_store,
-    api_key: str
+    api_key: str,
+    chat_model: str
 ):
 
     retriever = vector_store.as_retriever(
+
         search_type="similarity",
+
         search_kwargs={
             "k": 4
         }
+
     )
+
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
+
+        model=chat_model,
+
         google_api_key=api_key
+
     )
 
+
     prompt = PromptTemplate(
+
         template="""
 You are a helpful assistant.
 
@@ -164,69 +236,125 @@ Context:
 Question:
 {question}
 """,
+
         input_variables=[
             "context",
             "question"
         ]
+
     )
 
-    def format_docs(retrieved_docs):
+
+    # ----------------------------------------------
+    # FORMAT RETRIEVED DOCUMENTS
+    # ----------------------------------------------
+
+    def format_docs(
+        retrieved_docs
+    ):
 
         return "\n\n".join(
+
             doc.page_content
+
             for doc in retrieved_docs
+
         )
 
-    # Retrieval + formatting
+
+    # ----------------------------------------------
+    # PARALLEL CHAIN
+    # ----------------------------------------------
+
     parallel_chain = RunnableParallel({
+
         "context": (
+
             retriever
-            | RunnableLambda(format_docs)
+
+            | RunnableLambda(
+                format_docs
+            )
+
         ),
 
-        "question": RunnablePassthrough()
+        "question":
+            RunnablePassthrough()
+
     })
 
-    # Output parser
+
+    # ----------------------------------------------
+    # OUTPUT PARSER
+    # ----------------------------------------------
+
     parser = StrOutputParser()
 
-    # Complete RAG chain
+
+    # ----------------------------------------------
+    # MAIN RAG CHAIN
+    # ----------------------------------------------
+
     main_chain = (
+
         parallel_chain
+
         | prompt
+
         | llm
+
         | parser
+
     )
+
 
     return main_chain
 
 
 # --------------------------------------------------
-# 5. Process YouTube Video
+# PROCESS VIDEO
 # --------------------------------------------------
 
 def process_video(
     video_url: str,
     language: str,
-    api_key: str
+    api_key: str,
+    embedding_model: str,
+    chat_model: str
 ):
 
-    # Step 1: Get transcript
+    # 1. Get transcript
+
     transcript = get_transcript(
         video_url,
         language
     )
 
-    # Step 2: Create vector store
+
+    # 2. Create vector store
+
     vector_store = create_vector_store(
+
         transcript,
-        api_key
+
+        api_key,
+
+        embedding_model
+
     )
 
-    # Step 3: Create RAG chain
+
+    # 3. Create RAG chain
+
     rag_chain = create_rag_chain(
+
         vector_store,
-        api_key
+
+        api_key,
+
+        chat_model
+
     )
+
 
     return rag_chain
